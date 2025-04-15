@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>小学生练习题生成器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .controls label, .controls select, .controls input, .controls button {
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .questions {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .questions .column {
+            flex: 1;
+            margin-right: 20px;
+        }
+        .question {
+            margin-bottom: 10px;
+        }
+        .result {
+            margin-left: 10px;
+        }
+        .timer {
+            font-size: 1.5em;
+            margin-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <label for="range">口算类型：</label>
+        <select id="range">
+            <option value="10">十以内</option>
+            <option value="20">二十以内</option>
+            <option value="50">50以内</option>
+            <option value="100">100以内</option>
+        </select>
+
+        <label for="type">计算类型：</label>
+        <select id="type">
+            <option value="addition">加法</option>
+            <option value="subtraction">减法</option>
+            <option value="multiplication">乘法</option>
+            <option value="division">除法</option>
+            <option value="mixed2">两个数混合运算</option>
+            <option value="mixed3">3个数混合运算</option>
+            <option value="brackets">带括号混合运算</option>
+        </select>
+
+        <label for="special-number">包含特殊数字：</label>
+        <input type="text" id="special-number" placeholder="可选">
+
+        <label for="quantity">生成题量：</label>
+        <input type="text" id="quantity" value="20">
+
+        <button onclick="generateQuestions()">生成题目</button>
+        <button onclick="checkAnswers()">批改</button>
+        <button onclick="showAnswers()">显示答案</button>
+        <button onclick="window.print()">打印</button>
+        <button onclick="toggleTimer()">开始计时</button>
+        <span class="timer" id="timer">00:00</span>
+    </div>
+
+    <div class="questions" id="questions"></div>
+
+    <script>
+        let currentQuestions = [];
+        let timerInterval;
+        let timerRunning = false;
+        let timerSeconds = 0;
+
+        function generateQuestions() {
+            const range = parseInt(document.getElementById('range').value);
+            const type = document.getElementById('type').value;
+            const specialNumber = document.getElementById('special-number').value.trim();
+            const quantity = parseInt(document.getElementById('quantity').value.trim()) || 20;
+
+            const questionSet = new Set();
+            currentQuestions = [];
+            while (currentQuestions.length < quantity) {
+                const newQuestion = generateQuestion(range, type, specialNumber);
+                const questionString = newQuestion.question;
+                if (!questionSet.has(questionString)) {
+                    questionSet.add(questionString);
+                    currentQuestions.push(newQuestion);
+                }
+            }
+
+            displayQuestions(currentQuestions.map(q => q.question));
+        }
+
+        function generateQuestion(range, type, specialNumber) {
+            let num1, num2, num3, question, answer;
+
+            do {
+                num1 = getRandomNumber(range, specialNumber);
+                num2 = getRandomNumber(range, specialNumber);
+                num3 = getRandomNumber(range, specialNumber);
+                question = '';
+                answer = 0;
+
+                switch (type) {
+                    case 'addition':
+                        question = `${num1} + ${num2} = `;
+                        answer = num1 + num2;
+                        break;
+                    case 'subtraction':
+                        if (num1 < num2) [num1, num2] = [num2, num1]; // Ensure no negative results
+                        question = `${num1} - ${num2} = `;
+                        answer = num1 - num2;
+                        break;
+                    case 'multiplication':
+                        question = `${num1} * ${num2} = `;
+                        answer = num1 * num2;
+                        break;
+                    case 'division':
+                        if (num2 === 0) num2 = 1; // Prevent division by zero
+                        num1 = num1 * num2; // Ensure the result is an integer
+                        question = `${num1} / ${num2} = `;
+                        answer = num1 / num2;
+                        break;
+                    case 'mixed2':
+                        question = generateMixedOperation(num1, num2);
+                        answer = eval(question.replace('= ', ''));
+                        break;
+                    case 'mixed3':
+                        question = generateMixedOperation(num1, num2, num3);
+                        answer = eval(question.replace('= ', ''));
+                        break;
+                    case 'brackets':
+                        question = generateBracketsOperation(num1, num2, num3);
+                        answer = eval(question.replace('= ', ''));
+                        break;
+                }
+            } while (!Number.isInteger(answer) || answer < 0);
+
+            return { question, answer };
+        }
+
+        function getRandomNumber(range, specialNumber) {
+            if (specialNumber && !isNaN(parseInt(specialNumber))) {
+                return Math.random() < 0.5 ? parseInt(specialNumber) : Math.floor(Math.random() * range) + 1;
+            }
+            return Math.floor(Math.random() * range) + 1;
+        }
+
+        function generateMixedOperation(num1, num2, num3 = null) {
+            const operations = ['+', '-', '*', '/'];
+            const operation1 = operations[Math.floor(Math.random() * operations.length)];
+            const operation2 = operations[Math.floor(Math.random() * operations.length)];
+            if (num3 !== null) {
+                return `${num1} ${operation1} ${num2} ${operation2} ${num3} = `;
+            }
+            return `${num1} ${operation1} ${num2} = `;
+        }
+
+        function generateBracketsOperation(num1, num2, num3) {
+            const operations = ['+', '-', '*', '/'];
+            const operation1 = operations[Math.floor(Math.random() * operations.length)];
+            const operation2 = operations[Math.floor(Math.random() * operations.length)];
+            const bracketType = Math.random() < 0.5 ? 'first' : 'last';
+            if (bracketType === 'first') {
+                return `(${num1} ${operation1} ${num2}) ${operation2} ${num3} = `;
+            }
+            return `${num1} ${operation1} (${num2} ${operation2} ${num3}) = `;
+        }
+
+        function displayQuestions(questions) {
+            const questionsContainer = document.getElementById('questions');
+            questionsContainer.innerHTML = '';
+
+            const half = Math.ceil(questions.length / 2);
+            const column1 = document.createElement('div');
+            column1.className = 'column';
+            const column2 = document.createElement('div');
+            column2.className = 'column';
+
+            questions.slice(0, half).forEach((q, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question';
+                questionDiv.innerHTML = `${convertOperators(q)}<input type="text" id="answer-${index}" /> <span class="result" id="result-${index}"></span>`;
+                column1.appendChild(questionDiv);
+            });
+
+            questions.slice(half).forEach((q, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question';
+                questionDiv.innerHTML = `${convertOperators(q)}<input type="text" id="answer-${index + half}" /> <span class="result" id="result-${index + half}"></span>`;
+                column2.appendChild(questionDiv);
+            });
+
+            questionsContainer.appendChild(column1);
+            questionsContainer.appendChild(column2);
+
+            // Focus on the first input only after generating questions
+            setTimeout(() => {
+                document.querySelector(`#answer-0`).focus();
+            }, 0);
+        }
+
+        function convertOperators(question) {
+            return question.replace(/\*/g, '×').replace(/\//g, '÷');
+        }
+
+        function checkAnswers() {
+            currentQuestions.forEach((q, index) => {
+                const userAnswer = document.getElementById(`answer-${index}`).value;
+                const resultSpan = document.getElementById(`result-${index}`);
+                if (parseFloat(userAnswer) === q.answer) {
+                    resultSpan.textContent = '✔️';
+                    resultSpan.style.color = 'green';
+                } else {
+                    resultSpan.textContent = '❌';
+                    resultSpan.style.color = 'red';
+                }
+            });
+        }
+
+        function showAnswers() {
+            currentQuestions.forEach((q, index) => {
+                const resultSpan = document.getElementById(`result-${index}`);
+                if (resultSpan.textContent !== '✔️') {
+                    resultSpan.textContent += ` 正确答案: ${q.answer}`;
+                    resultSpan.style.color = 'blue';
+                }
+            });
+        }
+
+        function toggleTimer() {
+            if (timerRunning) {
+                clearInterval(timerInterval);
+                timerRunning = false;
+                document.querySelector('button[onclick="toggleTimer()"]').textContent = '开始计时';
+            } else {
+                timerSeconds = 0;
+                updateTimerDisplay();
+                timerInterval = setInterval(() => {
+                    timerSeconds++;
+                    updateTimerDisplay();
+                }, 1000);
+                timerRunning = true;
+                document.querySelector('button[onclick="toggleTimer()"]').textContent = '停止计时';
+            }
+        }
+
+        function updateTimerDisplay() {
+            const minutes = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+            const seconds = String(timerSeconds % 60).padStart(2, '0');
+            document.getElementById('timer').textContent = `${minutes}:${seconds}`;
+        }
+    </script>
+</body>
+</html>
